@@ -46,20 +46,43 @@ pipeline {
                                  fingerprint: true
             }
         }
+
+        stage('Docker Build') {
+            steps {
+                sh '''
+                    docker build \
+                      -t jenkins-maven-demo:1.0 \
+                      .
+                '''
+            }
+        }
+
+        stage('Docker Test') {
+            steps {
+                sh '''
+                    docker rm -f jenkins-maven-demo 2>/dev/null || true
+
+                    docker run --name jenkins-maven-demo \
+                      jenkins-maven-demo:1.0
+
+                    docker ps -a --filter name=jenkins-maven-demo
+                '''
+            }
+        }
     }
 
     post {
 
         always {
-            echo 'Maven pipeline finished.'
+            echo 'Maven + Docker pipeline finished.'
         }
 
         success {
-            echo 'Maven build successful!'
+            echo 'Maven build and Docker test successful!'
         }
 
         failure {
-            echo 'Maven build failed!'
+            echo 'Maven or Docker pipeline failed!'
         }
     }
 }

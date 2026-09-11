@@ -9,7 +9,7 @@ public class App {
         System.out.println("=================================");
         System.out.println("Application : Jenkins Maven CI");
         System.out.println("Version     : 1.0");
-        System.out.println("Author      : Bramhaiah");
+        System.out.println("Author      : M.Bramhaiah");
 
     }
 

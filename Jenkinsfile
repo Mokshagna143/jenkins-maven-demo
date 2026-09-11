@@ -69,20 +69,28 @@ pipeline {
                 '''
             }
         }
+        stage('Ansible Deploy') {
+            steps {
+                sh '''
+                    ANSIBLE_CONFIG=/opt/ansible-lab/ansible.cfg \
+                    ansible-playbook /opt/ansible-lab/docker-deploy.yml
+                '''
+            }
+        }
     }
 
     post {
 
         always {
-            echo 'Maven + Docker pipeline finished.'
+            echo 'Maven + Docker + Ansible pipeline finished.'
         }
 
         success {
-            echo 'Maven build and Docker test successful!'
+            echo 'Maven build and Docker test and Ansible deployment successful!'
         }
 
         failure {
-            echo 'Maven or Docker pipeline failed!'
+            echo 'Maven or Docker or Ansible pipeline failed!'
         }
     }
 }

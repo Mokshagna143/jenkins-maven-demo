@@ -4,3 +4,4 @@ Webhook test
 Webhook test
 digital-niravana'
 Dynamic Docker tagging and Ansible verification enabled.
+Ansible safe deployment test

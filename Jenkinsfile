@@ -51,7 +51,7 @@ pipeline {
             steps {
                 sh '''
                     docker build \
-                      -t jenkins-maven-demo:1.0 \
+                      -t jenkins-maven-demo:${BUILD_NUMBER} \
                       .
                 '''
             }
@@ -63,17 +63,19 @@ pipeline {
                     docker rm -f jenkins-maven-demo 2>/dev/null || true
 
                     docker run --name jenkins-maven-demo \
-                      jenkins-maven-demo:1.0
+                      jenkins-maven-demo:${BUILD_NUMBER}
 
                     docker ps -a --filter name=jenkins-maven-demo
                 '''
             }
         }
+
         stage('Ansible Deploy') {
             steps {
                 sh '''
                     ANSIBLE_CONFIG=/opt/ansible-lab/ansible.cfg \
-                    ansible-playbook /opt/ansible-lab/docker-deploy.yml
+                    ansible-playbook /opt/ansible-lab/docker-deploy.yml \
+                    -e "image_tag=${BUILD_NUMBER}"
                 '''
             }
         }
@@ -86,11 +88,11 @@ pipeline {
         }
 
         success {
-            echo 'Maven build and Docker test and Ansible deployment successful!'
+            echo 'Maven build, Docker test, and Ansible deployment successful!'
         }
 
         failure {
-            echo 'Maven or Docker or Ansible pipeline failed!'
+            echo 'Maven, Docker, or Ansible pipeline failed!'
         }
     }
 }

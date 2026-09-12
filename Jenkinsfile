@@ -1,5 +1,13 @@
 pipeline {
 
+    parameters {
+        string(
+            name: 'IMAGE_TAG',
+            defaultValue: '',
+            description: 'Docker image tag to deploy. Leave empty to deploy the current build.'
+        )
+    }
+
     agent any
 
     stages {
@@ -72,11 +80,22 @@ pipeline {
 
         stage('Ansible Deploy') {
             steps {
-                sh '''
-                    ANSIBLE_CONFIG=/opt/ansible-lab/ansible.cfg \
-                    ansible-playbook /opt/ansible-lab/docker-deploy.yml \
-                    -e "image_tag=${BUILD_NUMBER}"
-                '''
+                script {
+
+                    def deployTag = params.IMAGE_TAG?.trim()
+
+                    if (!deployTag) {
+                        deployTag = env.BUILD_NUMBER
+                    }
+
+                    echo "Deploying Docker image: jenkins-maven-demo:${deployTag}"
+
+                    sh """
+                        ANSIBLE_CONFIG=/opt/ansible-lab/ansible.cfg \
+                        ansible-playbook /opt/ansible-lab/docker-deploy.yml \
+                        -e "image_tag=${deployTag}"
+                    """
+                }
             }
         }
     }

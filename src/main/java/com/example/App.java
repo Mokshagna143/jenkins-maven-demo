@@ -21,7 +21,7 @@ public class App {
                     " Jenkins Maven Demo\n" +
                     "=================================\n" +
                     "Application : Jenkins Maven CI\n" +
-                    "Version     : 3.0\n" +
+                    "Version     : 4.0\n" +
                     "Author      : M.Bramhaiah\n" +
                     "Status      : Running\n";
 

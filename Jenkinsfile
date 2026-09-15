@@ -62,40 +62,37 @@ pipeline {
                     echo "jenkins-maven-demo:${BUILD_NUMBER}"
 
                     docker build \
-                      -t jenkins-maven-demo:${BUILD_NUMBER} \
-                      .
+                        -t jenkins-maven-demo:${BUILD_NUMBER} \
+                        .
                 '''
             }
         }
 
-    stage('Docker Test') {
-    steps {
-        sh '''
-            echo "Testing Docker image..."
+        stage('Docker Test') {
+            steps {
+                sh '''
+                    echo "Testing Docker image..."
 
-            docker rm -f jenkins-maven-demo-test 2>/dev/null || true
+                    docker rm -f jenkins-maven-demo-test 2>/dev/null || true
 
-            docker run -d \
-              --name jenkins-maven-demo-test \
-              -p 8082:8080 \
-              jenkins-maven-demo:${BUILD_NUMBER}
+                    docker run -d \
+                        --name jenkins-maven-demo-test \
+                        -p 8082:8080 \
+                        jenkins-maven-demo:${BUILD_NUMBER}
 
-            echo "Waiting for application to start..."
-            sleep 5
+                    echo "Waiting for application to start..."
+                    sleep 5
 
-            echo "Testing application..."
-            curl -f http://localhost:8082
+                    echo "Testing application..."
+                    curl -f http://localhost:8082
 
-            echo
-            echo "Docker application test successful."
+                    echo
+                    echo "Docker application test successful."
 
-            docker rm -f jenkins-maven-demo-test
-        '''
-    }
-}
-
-
-
+                    docker rm -f jenkins-maven-demo-test
+                '''
+            }
+        }
 
         stage('Load Image into Minikube') {
             steps {
@@ -103,7 +100,7 @@ pipeline {
                     echo "Loading Docker image into Minikube..."
 
                     sudo -u ubuntu -H minikube image load \
-                      jenkins-maven-demo:${BUILD_NUMBER}
+                        jenkins-maven-demo:${BUILD_NUMBER}
 
                     echo "Image loaded successfully."
                 '''
@@ -116,25 +113,39 @@ pipeline {
                     echo "Verifying image in Minikube..."
 
                     sudo -u ubuntu -H minikube image ls \
-                      | grep "jenkins-maven-demo:${BUILD_NUMBER}"
+                        | grep "jenkins-maven-demo:${BUILD_NUMBER}"
                 '''
             }
         }
 
+        stage('Ansible Deploy to Kubernetes') {
+            steps {
+                sh '''
+                    echo "Deploying image ${BUILD_NUMBER} to Kubernetes using Ansible..."
+
+                    ANSIBLE_CONFIG=/opt/ansible-lab/ansible.cfg \
+                    ansible-playbook \
+                        /opt/ansible-lab/k8s-deploy.yml \
+                        -e "image_tag=${BUILD_NUMBER}"
+
+                    echo "Ansible Kubernetes deployment successful."
+                '''
+            }
+        }
     }
 
     post {
 
         always {
-            echo 'Maven + Docker + Minikube pipeline finished.'
+            echo 'Maven + Docker + Minikube + Ansible + Kubernetes pipeline finished.'
         }
 
         success {
-            echo 'Maven build, Docker test, and Minikube image loading successful!'
+            echo 'Maven build, Docker test, Minikube image loading, and Kubernetes deployment successful!'
         }
 
         failure {
-            echo 'Maven, Docker, or Minikube stage failed!'
+            echo 'Maven, Docker, Minikube, or Kubernetes deployment stage failed!'
         }
     }
 }

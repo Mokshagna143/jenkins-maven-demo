@@ -68,22 +68,34 @@ pipeline {
             }
         }
 
-        stage('Docker Test') {
-            steps {
-                sh '''
-                    echo "Testing Docker image..."
+    stage('Docker Test') {
+    steps {
+        sh '''
+            echo "Testing Docker image..."
 
-                    docker rm -f jenkins-maven-demo-test 2>/dev/null || true
+            docker rm -f jenkins-maven-demo-test 2>/dev/null || true
 
-                    docker run \
-                      --name jenkins-maven-demo-test \
-                      jenkins-maven-demo:${BUILD_NUMBER}
+            docker run -d \
+              --name jenkins-maven-demo-test \
+              -p 8082:8080 \
+              jenkins-maven-demo:${BUILD_NUMBER}
 
-                    docker ps -a \
-                      --filter name=jenkins-maven-demo-test
-                '''
-            }
-        }
+            echo "Waiting for application to start..."
+            sleep 5
+
+            echo "Testing application..."
+            curl -f http://localhost:8082
+
+            echo
+            echo "Docker application test successful."
+
+            docker rm -f jenkins-maven-demo-test
+        '''
+    }
+}
+
+
+
 
         stage('Load Image into Minikube') {
             steps {

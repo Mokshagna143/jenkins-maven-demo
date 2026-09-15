@@ -134,6 +134,50 @@ pipeline {
                 '''
             }
         }
+
+        stage('Kubernetes Deployment Verification') {
+            steps {
+                sh '''
+                    echo "=========================================="
+                    echo " Kubernetes Deployment Verification"
+                    echo "=========================================="
+
+                    echo "Checking rollout status..."
+                    kubectl rollout status \
+                        deployment/jenkins-maven-demo \
+                        --timeout=120s
+
+                    echo "Checking available replicas..."
+
+                    AVAILABLE=$(kubectl get deployment jenkins-maven-demo \
+                        -o jsonpath='{.status.availableReplicas}')
+
+                    DESIRED=$(kubectl get deployment jenkins-maven-demo \
+                        -o jsonpath='{.spec.replicas}')
+
+                    echo "Available replicas: ${AVAILABLE}"
+                    echo "Desired replicas:   ${DESIRED}"
+
+                    if [ "${AVAILABLE}" != "${DESIRED}" ]; then
+                        echo "ERROR: Replica count mismatch!"
+                        exit 1
+                    fi
+
+                    echo "Replica verification successful."
+
+                    echo "Checking application endpoint..."
+
+                    curl -f http://192.168.49.2:31075
+
+                    echo
+                    echo "Application health check successful."
+
+                    echo "=========================================="
+                    echo " Kubernetes verification successful"
+                    echo "=========================================="
+                '''
+            }
+        }
     }
 
     post {
@@ -143,11 +187,11 @@ pipeline {
         }
 
         success {
-            echo 'Maven build, Docker test, Minikube image loading, and Kubernetes deployment successful!'
+            echo 'Maven build, Docker test, Minikube image loading, Kubernetes deployment, and application verification successful!'
         }
 
         failure {
-            echo 'Maven, Docker, Minikube, or Kubernetes deployment stage failed!'
+            echo 'Maven, Docker, Minikube, Kubernetes deployment, or application verification stage failed!'
         }
     }
 }

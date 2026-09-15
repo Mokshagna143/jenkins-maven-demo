@@ -4,7 +4,7 @@ pipeline {
         string(
             name: 'IMAGE_TAG',
             defaultValue: '',
-            description: 'Docker image tag to deploy. Leave empty to deploy the current build.'
+            description: 'Docker image tag to deploy. Leave empty to use the current Jenkins build number.'
         )
     }
 
@@ -58,6 +58,9 @@ pipeline {
         stage('Docker Build') {
             steps {
                 sh '''
+                    echo "Building Docker image:"
+                    echo "jenkins-maven-demo:${BUILD_NUMBER}"
+
                     docker build \
                       -t jenkins-maven-demo:${BUILD_NUMBER} \
                       .
@@ -68,50 +71,58 @@ pipeline {
         stage('Docker Test') {
             steps {
                 sh '''
-                    docker rm -f jenkins-maven-demo 2>/dev/null || true
+                    echo "Testing Docker image..."
 
-                    docker run --name jenkins-maven-demo \
+                    docker rm -f jenkins-maven-demo-test 2>/dev/null || true
+
+                    docker run \
+                      --name jenkins-maven-demo-test \
                       jenkins-maven-demo:${BUILD_NUMBER}
 
-                    docker ps -a --filter name=jenkins-maven-demo
+                    docker ps -a \
+                      --filter name=jenkins-maven-demo-test
                 '''
             }
         }
 
-        stage('Ansible Deploy') {
+        stage('Load Image into Minikube') {
             steps {
-                script {
+                sh '''
+                    echo "Loading Docker image into Minikube..."
 
-                    def deployTag = params.IMAGE_TAG?.trim()
+                    sudo -u ubuntu -H minikube image load \
+                      jenkins-maven-demo:${BUILD_NUMBER}
 
-                    if (!deployTag) {
-                        deployTag = env.BUILD_NUMBER
-                    }
-
-                    echo "Deploying Docker image: jenkins-maven-demo:${deployTag}"
-
-                    sh """
-                        ANSIBLE_CONFIG=/opt/ansible-lab/ansible.cfg \
-                        ansible-playbook /opt/ansible-lab/docker-deploy.yml \
-                        -e "image_tag=${deployTag}"
-                    """
-                }
+                    echo "Image loaded successfully."
+                '''
             }
         }
+
+        stage('Verify Minikube Image') {
+            steps {
+                sh '''
+                    echo "Verifying image in Minikube..."
+
+                    sudo -u ubuntu -H minikube image ls \
+                      | grep "jenkins-maven-demo:${BUILD_NUMBER}"
+                '''
+            }
+        }
+
     }
 
     post {
 
         always {
-            echo 'Maven + Docker + Ansible pipeline finished.'
+            echo 'Maven + Docker + Minikube pipeline finished.'
         }
 
         success {
-            echo 'Maven build, Docker test, and Ansible deployment successful!'
+            echo 'Maven build, Docker test, and Minikube image loading successful!'
         }
 
         failure {
-            echo 'Maven, Docker, or Ansible pipeline failed!'
+            echo 'Maven, Docker, or Minikube stage failed!'
         }
     }
 }

@@ -1,0 +1,189 @@
+---
+- name: Deploy Jenkins Maven Demo to Kubernetes
+  hosts: localhost
+  connection: local
+
+  vars:
+    app_name: jenkins-maven-demo
+    k8s_namespace: default
+    image_name: "jenkins-maven-demo:{{ image_tag }}"
+
+  tasks:
+
+    # --------------------------------------------------
+    # 1. Validate image_tag was provided
+    # --------------------------------------------------
+    - name: Validate image tag
+      ansible.builtin.assert:
+        that:
+          - image_tag is defined
+          - image_tag | string | length > 0
+        fail_msg: "image_tag is required. Example: -e image_tag=19"
+        success_msg: "Deploying image {{ image_name }}"
+
+    # --------------------------------------------------
+    # 2. Verify Docker image exists in Minikube
+    # --------------------------------------------------
+    - name: Verify image exists in Minikube
+      ansible.builtin.command:
+        cmd: "sudo -u ubuntu -H minikube image ls"
+      register: minikube_images
+      changed_when: false
+
+    - name: Verify requested image is available
+      ansible.builtin.assert:
+        that:
+          - image_name in minikube_images.stdout
+        fail_msg: "Image {{ image_name }} was not found in Minikube"
+        success_msg: "Image {{ image_name }} is available in Minikube"
+
+    # --------------------------------------------------
+    # 3. Create or update ConfigMap
+    # --------------------------------------------------
+    - name: Create or update application ConfigMap
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: "{{ app_name }}-config"
+            namespace: "{{ k8s_namespace }}"
+          data:
+            APP_ENV: development
+            APP_MESSAGE: "Hello from Kubernetes ConfigMap"
+
+    # --------------------------------------------------
+    # 4. Create or update Deployment
+    # --------------------------------------------------
+    - name: Create or update Kubernetes Deployment
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: "{{ app_name }}"
+            namespace: "{{ k8s_namespace }}"
+          spec:
+            replicas: 2
+
+            selector:
+              matchLabels:
+                app: "{{ app_name }}"
+
+            template:
+              metadata:
+                labels:
+                  app: "{{ app_name }}"
+
+              spec:
+                containers:
+                  - name: "{{ app_name }}"
+                    image: "{{ image_name }}"
+                    imagePullPolicy: Never
+
+                    envFrom:
+                      - configMapRef:
+                          name: "{{ app_name }}-config"
+
+    # --------------------------------------------------
+    # 5. Create or update Service
+    # --------------------------------------------------
+    - name: Create or update application Service
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: jenkins-maven-service
+            namespace: "{{ k8s_namespace }}"
+          spec:
+            selector:
+              app: "{{ app_name }}"
+
+            ports:
+              - protocol: TCP
+                port: 8080
+                targetPort: 8080
+
+            type: NodePort
+
+    # --------------------------------------------------
+    # 6. Wait for Deployment rollout
+    # --------------------------------------------------
+    - name: Wait for Deployment rollout
+      ansible.builtin.command:
+        cmd: "kubectl rollout status deployment/{{ app_name }}"
+      changed_when: false
+
+    # --------------------------------------------------
+    # 7. Get deployed image
+    # --------------------------------------------------
+    - name: Get deployed image
+      ansible.builtin.command:
+        cmd: "kubectl get deployment {{ app_name }} -o jsonpath={.spec.template.spec.containers[0].image}"
+      register: deployed_image
+      changed_when: false
+
+    # --------------------------------------------------
+    # 8. Verify deployed image
+    # --------------------------------------------------
+    - name: Verify deployed image
+      ansible.builtin.assert:
+        that:
+          - deployed_image.stdout == image_name
+        success_msg: "Deployment successful: {{ deployed_image.stdout }}"
+        fail_msg: "Deployment verification failed. Expected {{ image_name }}, found {{ deployed_image.stdout }}"
+
+    # --------------------------------------------------
+    # 9. Get Pod status
+    # --------------------------------------------------
+    - name: Get running application Pods
+      ansible.builtin.command:
+        cmd: "kubectl get pods -l app={{ app_name }}"
+      register: pod_status
+      changed_when: false
+
+    - name: Display Pod status
+      ansible.builtin.debug:
+        var: pod_status.stdout
+
+    # --------------------------------------------------
+    # 10. Get application Pod
+    # --------------------------------------------------
+    - name: Get running application Pod name
+      ansible.builtin.shell:
+        cmd: "kubectl get pods -l app={{ app_name }} --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}'"
+      register: pod_name
+      changed_when: false
+
+    # --------------------------------------------------
+    # 11. Verify ConfigMap environment
+    # --------------------------------------------------
+    - name: Verify ConfigMap environment
+      ansible.builtin.command:
+        cmd: "kubectl exec {{ pod_name.stdout }} -- printenv APP_ENV"
+      register: app_env
+      changed_when: false
+
+    - name: Verify APP_ENV
+      ansible.builtin.assert:
+        that:
+          - app_env.stdout == "development"
+        success_msg: "ConfigMap verified: APP_ENV={{ app_env.stdout }}"
+        fail_msg: "ConfigMap verification failed. APP_ENV={{ app_env.stdout }}"
+
+    # --------------------------------------------------
+    # 12. Display Service
+    # --------------------------------------------------
+    - name: Get Kubernetes Service
+      ansible.builtin.command:
+        cmd: "kubectl get service jenkins-maven-service"
+      register: service_status
+      changed_when: false
+
+    - name: Display Service status
+      ansible.builtin.debug:
+        var: service_status.stdout

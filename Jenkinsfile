@@ -114,6 +114,8 @@ pipeline {
 
                     sudo -u ubuntu -H minikube image ls \
                         | grep "jenkins-maven-demo:${BUILD_NUMBER}"
+
+                    echo "Minikube image verification successful."
                 '''
             }
         }
@@ -125,7 +127,7 @@ pipeline {
 
                     ANSIBLE_CONFIG=/opt/ansible-lab/ansible.cfg \
                     ansible-playbook \
-                        /opt/ansible-lab/k8s-deploy.yml \
+                        ansible/k8s-deploy.yml \
                         -e "image_tag=${BUILD_NUMBER}"
 
                     echo "Ansible Kubernetes deployment successful."
